@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多AI聊天窗口</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f0f2f5;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 设置图标按钮 */
+        .settings-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 50px;
+            height: 50px;
+            background-color: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            z-index: 10000;
+        }
+
+        .settings-btn:hover {
+            background-color: #34495e;
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+        }
+
+        /* 设置弹窗 */
+        .settings-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 10001;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .settings-modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 28px;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .close-modal:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        .add-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            width: 100%;
+        }
+
+        .add-btn:hover {
+            background-color: #0056b3;
+        }
+
+        /* 已添加的聊天窗口列表 */
+        .chat-list {
+            margin-top: 20px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+
+        .chat-list h3 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .chat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            transition: background-color 0.2s;
+        }
+
+        .chat-item:hover {
+            background-color: #e9ecef;
+        }
+
+        .chat-item-info {
+            flex: 1;
+        }
+
+        .chat-item-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .chat-item-url {
+            font-size: 12px;
+            color: #666;
+            word-break: break-all;
+        }
+
+        .chat-item-actions {
+            display: flex;
+            gap: 8px;
+            margin-left: 12px;
+        }
+
+        .chat-item-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .delete-btn {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+
+        /* 容器 */
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+            height: 100vh;
+            overflow: auto;
+            padding: 20px;
+        }
+
+        /* 布局控制区域 */
+        .layout-control {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .layout-control h3 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .layout-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+        }
+
+        .layout-option {
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            text-align: center;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .layout-option:hover {
+            border-color: #007bff;
+            background-color: #f0f8ff;
+        }
+
+        .layout-option.active {
+            border-color: #007bff;
+            background-color: #007bff;
+            color: white;
+        }
+
+        .window {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+            position: relative;
+        }
+
+        .window-header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 10px 15px;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+
+        .window-title {
+            font-size: 14px;
+            font-weight: bold;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .window-btn {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 2px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+        }
+
+        .window-btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .close-btn { color: #ff6b6b; }
+        .maximize-btn { color: #1dd1a1; }
+
+        .window-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        iframe {
+            flex: 1;
+            border: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        .window-resizer {
+            width: 10px;
+            height: 10px;
+            background-color: #2c3e50;
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            cursor: se-resize;
+            clip-path: polygon(100% 0, 0 100%, 100% 100%);
+        }
+
+        .window.maximized {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            margin: 0 !important;
+            z-index: 9999;
+        }
+
+        /* 预设布局 */
+        .container.layout-two-col { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+        .container.layout-three-col { grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr; }
+        .container.layout-four-grid { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+        .container.layout-one-two { grid-template-columns: 1fr; grid-auto-rows: min-content; }
+        .layout-one-two .window:nth-child(1) { grid-column: 1 / -1; min-height: 40vh; }
+        .layout-one-two .window:nth-child(n+2) { grid-column: span 1; }
+
+        /* 空状态 */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+            text-align: center;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state p {
+            font-size: 16px;
+        }
+
+        .empty-state small {
+            font-size: 14px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 设置按钮 -->
+    <button class="settings-btn" id="settingsBtn" title="设置">
+        ⚙️
+    </button>
+
+    <!-- 设置弹窗 -->
+    <div class="settings-modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>设置面板</h2>
+                <button class="close-modal" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- 添加聊天窗口 -->
+                <div class="form-group">
+                    <label for="chatUrl">聊天机器人URL:</label>
+                    <input type="url" id="chatUrl" placeholder="https://example.com/chat">
+                </div>
+
+                <div class="form-group">
+                    <label for="chatTitle">窗口标题:</label>
+                    <input type="text" id="chatTitle" placeholder="AI Chat 1">
+                </div>
+
+                <button class="add-btn" id="addChatBtn">添加聊天窗口</button>
+
+                <!-- 已添加的聊天窗口列表 -->
+                <div class="chat-list" id="chatList" style="display: none;">
+                    <h3>已添加的聊天窗口</h3>
+                    <div id="chatListItems"></div>
+                </div>
+
+                <!-- 布局选择 -->
+                <div class="layout-control">
+                    <h3>选择布局</h3>
+                    <div class="layout-options">
+                        <div class="layout-option active" data-layout="default">默认网格</div>
+                        <div class="layout-option" data-layout="two-col">双栏</div>
+                        <div class="layout-option" data-layout="three-col">三栏</div>
+                        <div class="layout-option" data-layout="four-grid">四方格 (2x2)</div>
+                        <div class="layout-option" data-layout="one-two">一拖二</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 聊天容器 -->
+    <div class="container" id="chatContainer">
+        <div class="empty-state" id="emptyState">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+            </svg>
+            <p>还没有聊天窗口</p>
+            <small>点击右上角设置按钮添加</small>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('chatContainer');
+            const addChatBtn = document.getElementById('addChatBtn');
+            const urlInput = document.getElementById('chatUrl');
+            const titleInput = document.getElementById('chatTitle');
+            const settingsBtn = document.getElementById('settingsBtn');
+            const settingsModal = document.getElementById('settingsModal');
+            const closeModal = document.getElementById('closeModal');
+            const chatList = document.getElementById('chatList');
+            const chatListItems = document.getElementById('chatListItems');
+            const emptyState = document.getElementById('emptyState');
+            const layoutOptions = document.querySelectorAll('.layout-option');
+
+            let chatCounter = 0;
+            let chatWindows = []; // 存储所有聊天窗口的信息
+
+            // 从 localStorage 加载数据
+            function loadFromStorage() {
+                try {
+                    const savedChats = localStorage.getItem('chatWindows');
+                    const savedLayout = localStorage.getItem('currentLayout');
+                    const savedCounter = localStorage.getItem('chatCounter');
+
+                    if (savedChats) {
+                        chatWindows = JSON.parse(savedChats);
+                        // 恢复聊天窗口
+                        chatWindows.forEach(chat => {
+                            createChatWindowElement(chat.id, chat.url, chat.title);
+                        });
+
+                        // 更新聊天列表
+                        updateChatList();
+
+                        // 隐藏空状态
+                        if (chatWindows.length > 0) {
+                            emptyState.style.display = 'none';
+                        }
+                    }
+
+                    if (savedCounter) {
+                        chatCounter = parseInt(savedCounter);
+                    }
+
+                    if (savedLayout) {
+                        // 恢复布局
+                        layoutOptions.forEach(opt => {
+                            opt.classList.remove('active');
+                            if (opt.dataset.layout === savedLayout) {
+                                opt.classList.add('active');
+                            }
+                        });
+
+                        if (savedLayout !== 'default') {
+                            container.classList.add(`layout-${savedLayout}`);
+                        }
+                    }
+                } catch (e) {
+                    console.error('从本地存储加载数据失败:', e);
+                }
+            }
+
+            // 保存到 localStorage
+            function saveToStorage() {
+                try {
+                    localStorage.setItem('chatWindows', JSON.stringify(chatWindows));
+                    localStorage.setItem('chatCounter', chatCounter.toString());
+
+                    // 保存当前布局
+                    const currentLayout = container.classList.contains('layout-two-col') ? 'two-col' :
+                                           container.classList.contains('layout-three-col') ? 'three-col' :
+                                           container.classList.contains('layout-four-grid') ? 'four-grid' :
+                                           container.classList.contains('layout-one-two') ? 'one-two' : 'default';
+                    localStorage.setItem('currentLayout', currentLayout);
+                } catch (e) {
+                    console.error('保存到本地存储失败:', e);
+                }
+            }
+
+            // 打开设置弹窗
+            settingsBtn.addEventListener('click', () => {
+                settingsModal.classList.add('active');
+            });
+
+            // 关闭设置弹窗
+            closeModal.addEventListener('click', () => {
+                settingsModal.classList.remove('active');
+            });
+
+            // 点击弹窗外部关闭
+            settingsModal.addEventListener('click', (e) => {
+                if (e.target === settingsModal) {
+                    settingsModal.classList.remove('active');
+                }
+            });
+
+            // 布局选择
+            layoutOptions.forEach(option => {
+                option.addEventListener('click', () => {
+                    layoutOptions.forEach(opt => opt.classList.remove('active'));
+                    option.classList.add('active');
+
+                    const selectedLayout = option.dataset.layout;
+                    container.className = 'container'; // 重置
+                    if (selectedLayout !== 'default') {
+                        container.classList.add(`layout-${selectedLayout}`);
+                    }
+
+                    // 重置所有窗口的大小和位置
+                    resetAllWindows();
+
+                    // 保存布局到本地存储
+                    saveToStorage();
+
+                    // 如果有全屏的窗口，切换布局时应先退出全屏
+                    document.querySelectorAll('.window.maximized').forEach(win => {
+                        win.classList.remove('maximized');
+                        const maximizeBtn = win.querySelector('.maximize-btn');
+                        if (maximizeBtn) maximizeBtn.textContent = '□';
+                    });
+                });
+            });
+
+            // 重置所有窗口的大小和位置
+            function resetAllWindows() {
+                document.querySelectorAll('.window').forEach(windowElement => {
+                    // 重置内联样式中的宽度、高度和transform
+                    windowElement.style.width = '';
+                    windowElement.style.height = '';
+                    windowElement.style.transform = '';
+                    windowElement.style.position = '';
+                    windowElement.style.top = '';
+                    windowElement.style.left = '';
+                    windowElement.style.margin = '';
+                    windowElement.style.zIndex = '';
+
+                    // 重置拖拽和调整大小的数据属性
+                    windowElement.setAttribute('data-dragging', 'false');
+                    windowElement.setAttribute('data-resizing', 'false');
+                });
+            }
+
+            // 创建聊天窗口DOM元素
+            function createChatWindowElement(windowId, url, title) {
+                const windowDiv = document.createElement('div');
+                windowDiv.className = 'window';
+                windowDiv.setAttribute('data-id', windowId);
+                windowDiv.setAttribute('data-dragging', 'false');
+                windowDiv.setAttribute('data-resizing', 'false');
+
+                windowDiv.innerHTML = `
+                    <div class="window-header">
+                        <div class="window-title">${title}</div>
+                        <div class="window-controls">
+                            <button class="window-btn maximize-btn">□</button>
+                            <button class="window-btn close-btn">×</button>
+                        </div>
+                    </div>
+                    <div class="window-content">
+                        <iframe src="${url}"></iframe>
+                    </div>
+                    <div class="window-resizer"></div>
+                `;
+
+                container.appendChild(windowDiv);
+
+                // 为新窗口绑定事件
+                makeWindowDraggable(windowDiv);
+                makeWindowResizable(windowDiv);
+                bindWindowControls(windowDiv);
+
+                return windowDiv;
+            }
+
+            // 添加聊天窗口函数
+            function addChatWindow(url, title) {
+                if (!url) {
+                    alert('请输入有效的聊天机器人URL。');
+                    return;
+                }
+
+                chatCounter++;
+                const windowId = `chat-${chatCounter}`;
+                const windowTitle = title || `AI Chat ${chatCounter}`;
+
+                // 保存窗口信息
+                chatWindows.push({
+                    id: windowId,
+                    url: url,
+                    title: windowTitle
+                });
+
+                // 创建窗口元素
+                createChatWindowElement(windowId, url, windowTitle);
+
+                // 隐藏空状态
+                emptyState.style.display = 'none';
+
+                // 更新聊天列表
+                updateChatList();
+
+                // 保存到本地存储
+                saveToStorage();
+            }
+
+            // 更新聊天列表
+            function updateChatList() {
+                if (chatWindows.length === 0) {
+                    chatList.style.display = 'none';
+                    // 隐藏清除所有按钮
+                    const clearAllBtn = document.querySelector('.chat-list + .add-btn');
+                    if (clearAllBtn && clearAllBtn.textContent.includes('清除所有')) {
+                        clearAllBtn.style.display = 'none';
+                    }
+                    return;
+                }
+
+                chatList.style.display = 'block';
+                chatListItems.innerHTML = '';
+
+                chatWindows.forEach((chat, index) => {
+                    const chatItem = document.createElement('div');
+                    chatItem.className = 'chat-item';
+                    chatItem.innerHTML = `
+                        <div class="chat-item-info">
+                            <div class="chat-item-title">${chat.title}</div>
+                            <div class="chat-item-url">${chat.url}</div>
+                        </div>
+                        <div class="chat-item-actions">
+                            <button class="chat-item-btn delete-btn" data-id="${chat.id}">删除</button>
+                        </div>
+                    `;
+                    chatListItems.appendChild(chatItem);
+                });
+
+                // 绑定删除按钮事件
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const windowId = btn.dataset.id;
+                        removeChatWindow(windowId);
+                    });
+                });
+
+                // 显示或创建清除所有按钮
+                let clearAllBtn = document.querySelector('.chat-list + .add-btn');
+                if (!clearAllBtn) {
+                    addClearAllButton();
+                } else if (clearAllBtn.textContent.includes('清除所有')) {
+                    clearAllBtn.style.display = 'block';
+                }
+            }
+
+            // 删除聊天窗口
+            function removeChatWindow(windowId) {
+                const windowElement = document.querySelector(`.window[data-id="${windowId}"]`);
+                if (windowElement) {
+                    container.removeChild(windowElement);
+                    chatWindows = chatWindows.filter(chat => chat.id !== windowId);
+                    updateChatList();
+
+                    // 保存到本地存储
+                    saveToStorage();
+
+                    // 如果没有窗口了，显示空状态
+                    if (chatWindows.length === 0) {
+                        emptyState.style.display = 'flex';
+                    }
+                }
+            }
+
+            // 添加清除所有按钮功能
+            function addClearAllButton() {
+                const clearAllBtn = document.createElement('button');
+                clearAllBtn.className = 'add-btn';
+                clearAllBtn.style.backgroundColor = '#dc3545';
+                clearAllBtn.style.marginTop = '10px';
+                clearAllBtn.textContent = '清除所有聊天窗口';
+                clearAllBtn.addEventListener('click', () => {
+                    if (confirm('确定要清除所有聊天窗口吗？此操作不可恢复。')) {
+                        chatWindows.forEach(chat => {
+                            const windowElement = document.querySelector(`.window[data-id="${chat.id}"]`);
+                            if (windowElement) {
+                                container.removeChild(windowElement);
+                            }
+                        });
+
+                        chatWindows = [];
+                        updateChatList();
+                        saveToStorage();
+                        emptyState.style.display = 'flex';
+                    }
+                });
+
+                chatList.after(clearAllBtn);
+            }
+
+            // 添加按钮事件
+            addChatBtn.addEventListener('click', () => {
+                const url = urlInput.value.trim();
+                const title = titleInput.value.trim();
+                addChatWindow(url, title);
+                // 清空输入框
+                urlInput.value = '';
+                titleInput.value = `AI Chat ${chatCounter + 1}`;
+            });
+
+            // 回车键添加
+            urlInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    addChatBtn.click();
+                }
+            });
+            titleInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    addChatBtn.click();
+                }
+            });
+
+            // 拖拽功能
+            function makeWindowDraggable(windowElement) {
+                const header = windowElement.querySelector('.window-header');
+                let isDragging = false;
+                let currentX;
+                let currentY;
+                let initialX;
+                let initialY;
+                let xOffset = 0;
+                let yOffset = 0;
+
+                header.addEventListener("mousedown", dragStart);
+                document.addEventListener("mouseup", dragEnd);
+                document.addEventListener("mousemove", drag);
+
+                function dragStart(e) {
+                    if (windowElement.classList.contains('maximized')) return;
+
+                    initialX = e.clientX - xOffset;
+                    initialY = e.clientY - yOffset;
+
+                    if (e.target === header || header.contains(e.target)) {
+                        isDragging = true;
+                        windowElement.setAttribute('data-dragging', 'true');
+                        windowElement.style.zIndex = 1000;
+                    }
+                }
+
+                function dragEnd(e) {
+                    if (isDragging) {
+                        isDragging = false;
+                        windowElement.setAttribute('data-dragging', 'false');
+                        initialX = currentX;
+                        initialY = currentY;
+                        windowElement.style.zIndex = '';
+                    }
+                }
+
+                function drag(e) {
+                    if (isDragging) {
+                        e.preventDefault();
+                        currentX = e.clientX - initialX;
+                        currentY = e.clientY - initialY;
+
+                        xOffset = currentX;
+                        yOffset = currentY;
+
+                        setTranslate(currentX, currentY, windowElement);
+                    }
+                }
+
+                function setTranslate(xPos, yPos, el) {
+                    el.style.transform = "translate3d(" + xPos + "px, " + yPos + "px, 0)";
+                }
+            }
+
+            // 调整大小功能
+            function makeWindowResizable(windowElement) {
+                const resizer = windowElement.querySelector('.window-resizer');
+                let isResizing = false;
+                let startWidth, startHeight, startX, startY;
+
+                resizer.addEventListener('mousedown', initResize, false);
+
+                function initResize(e) {
+                    if (windowElement.classList.contains('maximized')) return;
+
+                    e.preventDefault();
+                    isResizing = true;
+                    windowElement.setAttribute('data-resizing', 'true');
+                    startWidth = windowElement.offsetWidth;
+                    startHeight = windowElement.offsetHeight;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    windowElement.style.zIndex = 1000;
+                    document.body.style.cursor = 'se-resize';
+                }
+
+                document.addEventListener('mousemove', doResize, false);
+                document.addEventListener('mouseup', stopResize, false);
+
+                function doResize(e) {
+                    if (!isResizing) return;
+                    e.preventDefault();
+                    const width = startWidth + (e.clientX - startX);
+                    const height = startHeight + (e.clientY - startY);
+                    windowElement.style.width = Math.max(width, 300) + 'px';
+                    windowElement.style.height = Math.max(height, 200) + 'px';
+                }
+
+                function stopResize(e) {
+                    if (isResizing) {
+                        isResizing = false;
+                        windowElement.setAttribute('data-resizing', 'false');
+                        document.body.style.cursor = '';
+                        windowElement.style.zIndex = '';
+                    }
+                }
+            }
+
+            // 窗口控制按钮
+            function bindWindowControls(windowElement) {
+                const closeBtn = windowElement.querySelector('.close-btn');
+                const maximizeBtn = windowElement.querySelector('.maximize-btn');
+                const header = windowElement.querySelector('.window-header');
+                const originalStyle = {
+                    position: windowElement.style.position,
+                    top: windowElement.style.top,
+                    left: windowElement.style.left,
+                    width: windowElement.style.width,
+                    height: windowElement.style.height,
+                    margin: windowElement.style.margin,
+                    zIndex: windowElement.style.zIndex
+                };
+
+                closeBtn.addEventListener('click', () => {
+                    const windowId = windowElement.getAttribute('data-id');
+                    removeChatWindow(windowId);
+                });
+
+                maximizeBtn.addEventListener('click', () => {
+                    windowElement.classList.toggle('maximized');
+                    if (windowElement.classList.contains('maximized')) {
+                        maximizeBtn.textContent = '❐';
+                        Object.assign(originalStyle, {
+                            position: windowElement.style.position,
+                            top: windowElement.style.top,
+                            left: windowElement.style.left,
+                            width: windowElement.style.width,
+                            height: windowElement.style.height,
+                            margin: windowElement.style.margin,
+                        });
+                        windowElement.style.position = 'fixed';
+                        windowElement.style.top = '0';
+                        windowElement.style.left = '0';
+                        windowElement.style.width = '100vw';
+                        windowElement.style.height = '100vh';
+                        windowElement.style.margin = '0';
+                        windowElement.style.zIndex = '9999';
+                    } else {
+                        maximizeBtn.textContent = '□';
+                        windowElement.style.position = originalStyle.position;
+                        windowElement.style.top = originalStyle.top;
+                        windowElement.style.left = originalStyle.left;
+                        windowElement.style.width = originalStyle.width;
+                        windowElement.style.height = originalStyle.height;
+                        windowElement.style.margin = originalStyle.margin;
+                        windowElement.style.zIndex = originalStyle.zIndex;
+                    }
+                });
+
+                header.addEventListener('dblclick', () => {
+                    if (!windowElement.classList.contains('maximized')) {
+                        maximizeBtn.click();
+                    }
+                });
+            }
+
+            // 初始化：从本地存储加载数据
+            loadFromStorage();
+
+            // 添加清除所有按钮（仅在有聊天窗口时显示）
+            if (chatWindows.length > 0) {
+                addClearAllButton();
+            }
+        });
+    </script>
+
+</body>
+</html>
