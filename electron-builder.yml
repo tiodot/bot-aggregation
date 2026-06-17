@@ -1,0 +1,13 @@
+appId: com.ai-aggregator.app
+productName: AI Aggregator
+mac:
+  category: public.app-category.productivity
+  target: dmg
+directories:
+  output: dist/release
+files:
+  - dist/renderer/**/*
+  - src/main/**/*
+  - src/adapters/**/*
+  - src/preload/**/*
+  - package.json
