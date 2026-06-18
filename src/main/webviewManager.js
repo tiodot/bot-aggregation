@@ -14,14 +14,15 @@ class WebviewManager {
 
   async initialize() {
     console.log('[WebviewManager] Initializing with', this.adapters.length, 'adapters...');
-    for (const adapter of this.adapters) {
-      try {
-        await this._createView(adapter);
-      } catch (err) {
-        console.error(`[WebviewManager] Failed to initialize ${adapter.name}:`, err);
-        this._notifyRenderer(adapter.name, 'status', 'error');
+    // Initialize all adapters in parallel so one slow page doesn't block others
+    const results = await Promise.allSettled(
+      this.adapters.map((adapter) => this._createView(adapter))
+    );
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        console.error(`[WebviewManager] ${this.adapters[i].name} init failed:`, r.reason);
       }
-    }
+    });
     console.log('[WebviewManager] Initialization complete. Views:', [...this.views.keys()]);
   }
 
@@ -40,7 +41,13 @@ class WebviewManager {
     this.views.set(adapter.name, { view, adapter, status: 'loading' });
     this._notifyRenderer(adapter.name, 'status', 'loading');
 
-    await view.webContents.loadURL(adapter.url);
+    // Load with timeout
+    console.log(`[${adapter.name}] Starting loadURL...`);
+    const loadPromise = view.webContents.loadURL(adapter.url);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('loadURL timeout (30s)')), 30000)
+    );
+    await Promise.race([loadPromise, timeoutPromise]);
     console.log(`[${adapter.name}] Page loaded. Dumping page info...`);
 
     // Debug: dump page title and check for common elements
