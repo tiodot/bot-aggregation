@@ -16,17 +16,22 @@ class BaseAdapter {
 
   /**
    * Wait until the AI page is loaded and the input element exists.
-   * @param {Electron.WebContents} webContents
-   * @param {number} timeout - ms to wait before throwing
    */
   async waitForReady(webContents, timeout = 30000) {
     const selector = this.selectors.input;
+    console.log(`[${this.name}] waitForReady: looking for "${selector}"...`);
     const start = Date.now();
     while (Date.now() - start < timeout) {
       const found = await webContents.executeJavaScript(
         `!!document.querySelector('${selector}')`
-      ).catch(() => false);
-      if (found) return true;
+      ).catch((e) => {
+        console.log(`[${this.name}] waitForReady JS error:`, e.message);
+        return false;
+      });
+      if (found) {
+        console.log(`[${this.name}] waitForReady: found input element!`);
+        return true;
+      }
       await this._sleep(500);
     }
     throw new Error(`${this.name}: input element "${selector}" not found after ${timeout}ms`);
@@ -34,50 +39,85 @@ class BaseAdapter {
 
   /**
    * Type a query into the input field and click send.
-   * @param {Electron.WebContents} webContents
-   * @param {string} query
    */
   async sendQuery(webContents, query) {
-    await webContents.executeJavaScript(`
-      (() => {
-        const input = document.querySelector('${this.selectors.input}');
-        if (!input) throw new Error('Input not found');
+    const inputSel = this.selectors.input;
+    const sendSel = this.selectors.sendBtn;
+    console.log(`[${this.name}] sendQuery: input="${inputSel}", sendBtn="${sendSel}"`);
 
-        // For <textarea> and <input>
+    const result = await webContents.executeJavaScript(`
+      (() => {
+        const selectors = ${JSON.stringify(inputSel.split(', '))};
+        let input = null;
+        let matchedSelector = null;
+        for (const sel of selectors) {
+          input = document.querySelector(sel.trim());
+          if (input) { matchedSelector = sel.trim(); break; }
+        }
+        if (!input) {
+          return { ok: false, error: 'Input not found. Tried: ' + selectors.join(', ') };
+        }
+
+        console.log('[${this.name}] Found input with selector:', matchedSelector, 'tag:', input.tagName);
+
         if ('value' in input) {
-          input.value = ${JSON.stringify(query)};
+          const nativeSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLTextAreaElement.prototype, 'value'
+          )?.set || Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype, 'value'
+          )?.set;
+          if (nativeSetter) {
+            nativeSetter.call(input, ${JSON.stringify(query)});
+          } else {
+            input.value = ${JSON.stringify(query)};
+          }
           input.dispatchEvent(new Event('input', { bubbles: true }));
           input.dispatchEvent(new Event('change', { bubbles: true }));
         } else {
-          // contenteditable
           input.focus();
           input.textContent = ${JSON.stringify(query)};
           input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
         }
 
-        // Click send button (with small delay to let input events propagate)
+        console.log('[${this.name}] Input filled. Clicking send in 200ms...');
+
         setTimeout(() => {
-          const btn = document.querySelector('${this.selectors.sendBtn}');
-          if (btn) btn.click();
-        }, 100);
+          const btnSelectors = ${JSON.stringify(sendSel.split(', '))};
+          let btn = null;
+          for (const sel of btnSelectors) {
+            btn = document.querySelector(sel.trim());
+            if (btn) {
+              console.log('[${this.name}] Found send button:', sel.trim());
+              break;
+            }
+          }
+          if (btn) {
+            btn.click();
+            console.log('[${this.name}] Send button clicked!');
+          } else {
+            console.error('[${this.name}] Send button not found! Tried:', btnSelectors.join(', '));
+          }
+        }, 200);
+
+        return { ok: true, matchedSelector };
       })()
     `);
+
+    console.log(`[${this.name}] sendQuery result:`, JSON.stringify(result));
+    if (result && !result.ok) {
+      throw new Error(result.error);
+    }
   }
 
   /**
    * Listen for the AI's response via MutationObserver.
-   * Calls onChunk(text) each time the response changes.
-   * Resolves when the response is complete.
-   *
-   * @param {Electron.WebContents} webContents
-   * @param {function} onChunk - callback with latest full text
-   * @returns {Promise<string>} final response text
    */
   async listenForResponse(webContents, onChunk) {
     const responseSelector = this.selectors.response;
     const stopBtnSelector = this.selectors.stopBtn;
-
     const responseId = `__ai_response_${Date.now()}`;
+
+    console.log(`[${this.name}] listenForResponse: response="${responseSelector}", stopBtn="${stopBtnSelector}"`);
 
     await webContents.executeJavaScript(`
       (() => {
@@ -128,11 +168,13 @@ class BaseAdapter {
         }, 500);
 
         window[RESPONSE_ID] = { status: 'waiting', text: '' };
+        console.log('[${this.name}] MutationObserver installed, waiting for response...');
       })()
     `);
 
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
+        console.error(`[${this.name}] listenForResponse TIMEOUT (120s)`);
         reject(new Error(`${this.name}: response timeout (120s)`));
       }, 120000);
 
@@ -150,12 +192,14 @@ class BaseAdapter {
           if (state.status === 'done') {
             clearInterval(poll);
             clearTimeout(timeout);
+            console.log(`[${this.name}] listenForResponse: done (${state.text.length} chars)`);
             onChunk(state.text);
             resolve(state.text);
           }
         } catch (e) {
           clearInterval(poll);
           clearTimeout(timeout);
+          console.error(`[${this.name}] listenForResponse error:`, e.message);
           reject(e);
         }
       }, 300);

@@ -19,16 +19,22 @@ class QwenAdapter extends BaseAdapter {
   }
 
   async sendQuery(webContents, query) {
-    await webContents.executeJavaScript(`
+    console.log(`[Qwen] sendQuery: using custom implementation`);
+    const result = await webContents.executeJavaScript(`
       (() => {
         const selectors = ${JSON.stringify(this.selectors.input.split(', '))};
         let input = null;
+        let matched = null;
         for (const sel of selectors) {
           input = document.querySelector(sel.trim());
-          if (input) break;
+          if (input) { matched = sel.trim(); break; }
         }
-        if (!input) throw new Error('Qwen input not found');
+        if (!input) {
+          console.error('[Qwen] Input not found. Tried:', selectors.join(', '));
+          return { ok: false, error: 'Qwen input not found. Tried: ' + selectors.join(', ') };
+        }
 
+        console.log('[Qwen] Found input:', matched, 'tag:', input.tagName);
         input.focus();
 
         if ('value' in input) {
@@ -45,15 +51,29 @@ class QwenAdapter extends BaseAdapter {
           input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
         }
 
+        console.log('[Qwen] Input filled. Will click send in 200ms...');
+
         setTimeout(() => {
           const btnSelectors = ${JSON.stringify(this.selectors.sendBtn.split(', '))};
           for (const sel of btnSelectors) {
             const btn = document.querySelector(sel.trim());
-            if (btn && !btn.disabled) { btn.click(); break; }
+            if (btn && !btn.disabled) {
+              console.log('[Qwen] Clicking send button:', sel.trim());
+              btn.click();
+              return;
+            }
           }
+          console.error('[Qwen] Send button not found or disabled');
         }, 200);
+
+        return { ok: true, matchedSelector: matched };
       })()
     `);
+
+    console.log(`[Qwen] sendQuery result:`, JSON.stringify(result));
+    if (result && !result.ok) {
+      throw new Error(result.error);
+    }
   }
 }
 
