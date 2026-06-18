@@ -9,7 +9,9 @@ class WebviewManager {
     this.mainWindow = mainWindow;
     this.views = new Map(); // name -> { view, adapter, status }
     this.adapters = [new QwenAdapter(), new DeepSeekAdapter(), new KimiAdapter()];
+    this.activeCardView = null; // name of currently shown card webview
     this._registerIpcHandlers();
+    this._registerResizeHandler();
   }
 
   async initialize() {
@@ -125,6 +127,14 @@ class WebviewManager {
       return this.broadcast(query);
     });
 
+    ipcMain.handle('show-card-webview', (_event, name, rect) => {
+      this.showCardWebview(name, rect);
+    });
+
+    ipcMain.handle('hide-card-webview', () => {
+      this.hideCardWebview();
+    });
+
     ipcMain.handle('retry-ai', async (_event, name) => {
       console.log(`[WebviewManager] Retry requested for ${name}`);
       const entry = this.views.get(name);
@@ -140,6 +150,44 @@ class WebviewManager {
         }
       }
     });
+  }
+
+  _registerResizeHandler() {
+    this.mainWindow.on('resize', () => {
+      // Re-position the active card webview on window resize
+      if (this.activeCardView && this._lastRect) {
+        setTimeout(() => {
+          const entry = this.views.get(this.activeCardView);
+          if (entry) {
+            entry.view.setBounds(this._lastRect);
+          }
+        }, 100);
+      }
+    });
+  }
+
+  showCardWebview(name, rect) {
+    const entry = this.views.get(name);
+    if (!entry) {
+      console.error(`[WebviewManager] showCardWebview: ${name} not found`);
+      return;
+    }
+    console.log(`[WebviewManager] Showing BrowserView for ${name} at`, JSON.stringify(rect));
+    this.mainWindow.addBrowserView(entry.view);
+    entry.view.setBounds(rect);
+    this.activeCardView = name;
+    this._lastRect = rect;
+  }
+
+  hideCardWebview() {
+    if (!this.activeCardView) return;
+    const entry = this.views.get(this.activeCardView);
+    if (entry) {
+      console.log(`[WebviewManager] Hiding BrowserView for ${this.activeCardView}`);
+      this.mainWindow.removeBrowserView(entry.view);
+    }
+    this.activeCardView = null;
+    this._lastRect = null;
   }
 
   async broadcast(query) {

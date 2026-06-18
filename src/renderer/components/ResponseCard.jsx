@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef, useEffect } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import useStore from '../store';
 
 const styles = {
@@ -72,17 +72,6 @@ const styles = {
     color: '#89b4fa',
     cursor: 'pointer',
   },
-  webview: {
-    flex: 1,
-    border: 'none',
-    borderRadius: '0 0 10px 10px',
-  },
-};
-
-const AI_URLS = {
-  Qwen: 'https://tongyi.aliyun.com/qianwen',
-  DeepSeek: 'https://chat.deepseek.com',
-  Kimi: 'https://kimi.moonshot.cn',
 };
 
 const statusLabels = {
@@ -94,12 +83,28 @@ const statusLabels = {
 };
 
 export default function ResponseCard({ ai }) {
-  const [showWebview, setShowWebview] = useState(false);
-  const webviewRef = useRef(null);
+  const [showingOriginal, setShowingOriginal] = useState(false);
+  const cardRef = useRef(null);
 
-  const handleToggleWebview = useCallback(() => {
-    setShowWebview((prev) => !prev);
-  }, []);
+  const handleToggleOriginal = useCallback(() => {
+    if (!window.api) return;
+
+    if (showingOriginal) {
+      // Hide the BrowserView
+      window.api.hideCardWebview();
+      setShowingOriginal(false);
+    } else {
+      // Calculate card's bounding rect and send to main process
+      const rect = cardRef.current.getBoundingClientRect();
+      window.api.showCardWebview(ai.name, {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      });
+      setShowingOriginal(true);
+    }
+  }, [ai.name, showingOriginal]);
 
   const handleCopy = useCallback(() => {
     if (ai.response) {
@@ -108,7 +113,7 @@ export default function ResponseCard({ ai }) {
   }, [ai.response]);
 
   return (
-    <div style={styles.card}>
+    <div ref={cardRef} style={styles.card}>
       <div style={styles.header}>
         <span style={styles.name(ai.color)}>{ai.name}</span>
         <span style={styles.statusBadge(ai.status)}>
@@ -116,36 +121,28 @@ export default function ResponseCard({ ai }) {
         </span>
       </div>
 
-      {showWebview ? (
-        <webview
-          ref={webviewRef}
-          src={AI_URLS[ai.name] || ''}
-          style={styles.webview}
-          allowpopups="true"
-        />
-      ) : (
-        <div style={styles.body}>
-          {ai.error ? (
-            <span style={{ color: '#f38ba8' }}>⚠ {ai.error}</span>
-          ) : ai.response ? (
-            ai.response
-          ) : ai.status === 'loading' ? (
-            <span style={{ color: '#45475a' }}>等待页面就绪...</span>
-          ) : (
-            <span style={{ color: '#45475a' }}>发送问题后，回答将在此显示</span>
-          )}
-          {ai.status === 'sending' && <span style={{ animation: 'blink 1s infinite' }}> ▎</span>}
-        </div>
-      )}
+      {/* The body area — BrowserView will be positioned on top when showing original */}
+      <div style={{ ...styles.body, visibility: showingOriginal ? 'hidden' : 'visible' }}>
+        {ai.error ? (
+          <span style={{ color: '#f38ba8' }}>⚠ {ai.error}</span>
+        ) : ai.response ? (
+          ai.response
+        ) : ai.status === 'loading' ? (
+          <span style={{ color: '#45475a' }}>等待页面就绪...</span>
+        ) : (
+          <span style={{ color: '#45475a' }}>发送问题后，回答将在此显示</span>
+        )}
+        {ai.status === 'sending' && <span style={{ animation: 'blink 1s infinite' }}> ▎</span>}
+      </div>
 
       <div style={styles.footer}>
         <button
-          style={showWebview ? styles.btnActive : styles.btn}
-          onClick={handleToggleWebview}
+          style={showingOriginal ? styles.btnActive : styles.btn}
+          onClick={handleToggleOriginal}
         >
-          {showWebview ? '返回回答' : '查看原网页'}
+          {showingOriginal ? '返回回答' : '查看原网页'}
         </button>
-        {!showWebview && ai.response && (
+        {!showingOriginal && ai.response && (
           <button style={styles.btn} onClick={handleCopy}>复制</button>
         )}
       </div>
