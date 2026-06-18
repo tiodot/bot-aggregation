@@ -41,8 +41,48 @@ class WebviewManager {
     this._notifyRenderer(adapter.name, 'status', 'loading');
 
     await view.webContents.loadURL(adapter.url);
-    console.log(`[${adapter.name}] Page loaded. Waiting for ready...`);
+    console.log(`[${adapter.name}] Page loaded. Dumping page info...`);
 
+    // Debug: dump page title and check for common elements
+    try {
+      const pageInfo = await view.webContents.executeJavaScript(`
+        (() => {
+          const title = document.title;
+          const url = location.href;
+          const bodyText = document.body?.innerText?.substring(0, 200) || '';
+          const textareas = document.querySelectorAll('textarea');
+          const inputs = document.querySelectorAll('input[type="text"]');
+          const editables = document.querySelectorAll('[contenteditable="true"]');
+          const buttons = document.querySelectorAll('button');
+
+          return {
+            title,
+            url,
+            bodySnippet: bodyText.substring(0, 200),
+            textareaCount: textareas.length,
+            textareaSelectors: [...textareas].map(t => ({
+              id: t.id,
+              className: t.className,
+              placeholder: t.placeholder,
+              testId: t.getAttribute('data-testid'),
+            })),
+            inputCount: inputs.length,
+            editableCount: editables.length,
+            buttonCount: buttons.length,
+            buttonSamples: [...buttons].slice(0, 10).map(b => ({
+              text: b.innerText?.substring(0, 30),
+              className: b.className?.substring(0, 50),
+              testId: b.getAttribute('data-testid'),
+            })),
+          };
+        })()
+      `);
+      console.log(`[${adapter.name}] Page info:`, JSON.stringify(pageInfo, null, 2));
+    } catch (e) {
+      console.error(`[${adapter.name}] Failed to dump page info:`, e.message);
+    }
+
+    // Now wait for ready
     try {
       await adapter.waitForReady(view.webContents);
       this.views.get(adapter.name).status = 'ready';
@@ -50,6 +90,23 @@ class WebviewManager {
       this._notifyRenderer(adapter.name, 'status', 'ready');
     } catch (err) {
       console.error(`[${adapter.name}] ❌ Not ready:`, err.message);
+
+      // Dump final state on failure
+      try {
+        const finalInfo = await view.webContents.executeJavaScript(`
+          (() => {
+            const textareas = document.querySelectorAll('textarea');
+            return {
+              url: location.href,
+              title: document.title,
+              textareaCount: textareas.length,
+              allSelectors: [...textareas].map(t => 'textarea#' + t.id + '.' + t.className.split(' ')[0]),
+            };
+          })()
+        `);
+        console.log(`[${adapter.name}] Final state on failure:`, JSON.stringify(finalInfo, null, 2));
+      } catch (e2) {}
+
       this.views.get(adapter.name).status = 'error';
       this._notifyRenderer(adapter.name, 'status', 'error');
     }
