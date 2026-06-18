@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import useStore from '../store';
 
 const styles = {
@@ -39,13 +39,6 @@ const styles = {
       color: c.color,
     };
   },
-  statusText: {
-    loading: '加载中...',
-    ready: '就绪',
-    sending: '回答中...',
-    done: '完成',
-    error: '错误',
-  },
   body: {
     flex: 1,
     padding: 12,
@@ -70,6 +63,26 @@ const styles = {
     color: '#6c7086',
     cursor: 'pointer',
   },
+  btnActive: {
+    fontSize: 11,
+    padding: '4px 10px',
+    borderRadius: 4,
+    border: '1px solid #89b4fa',
+    backgroundColor: '#89b4fa22',
+    color: '#89b4fa',
+    cursor: 'pointer',
+  },
+  webview: {
+    flex: 1,
+    border: 'none',
+    borderRadius: '0 0 10px 10px',
+  },
+};
+
+const AI_URLS = {
+  Qwen: 'https://tongyi.aliyun.com/qianwen',
+  DeepSeek: 'https://chat.deepseek.com',
+  Kimi: 'https://kimi.moonshot.cn',
 };
 
 const statusLabels = {
@@ -81,12 +94,12 @@ const statusLabels = {
 };
 
 export default function ResponseCard({ ai }) {
-  const showOriginal = useStore((s) => s.showOriginal);
+  const [showWebview, setShowWebview] = useState(false);
+  const webviewRef = useRef(null);
 
-  const handleShowOriginal = useCallback(() => {
-    if (window.api) window.api.showOriginal(ai.name);
-    showOriginal(ai.name);
-  }, [ai.name, showOriginal]);
+  const handleToggleWebview = useCallback(() => {
+    setShowWebview((prev) => !prev);
+  }, []);
 
   const handleCopy = useCallback(() => {
     if (ai.response) {
@@ -102,21 +115,37 @@ export default function ResponseCard({ ai }) {
           {statusLabels[ai.status] || ai.status}
         </span>
       </div>
-      <div style={styles.body}>
-        {ai.error ? (
-          <span style={{ color: '#f38ba8' }}>⚠ {ai.error}</span>
-        ) : ai.response ? (
-          ai.response
-        ) : ai.status === 'loading' ? (
-          <span style={{ color: '#45475a' }}>等待页面就绪...</span>
-        ) : (
-          <span style={{ color: '#45475a' }}>发送问题后，回答将在此显示</span>
-        )}
-        {ai.status === 'sending' && <span style={{ animation: 'blink 1s infinite' }}> ▎</span>}
-      </div>
+
+      {showWebview ? (
+        <webview
+          ref={webviewRef}
+          src={AI_URLS[ai.name] || ''}
+          style={styles.webview}
+          allowpopups="true"
+        />
+      ) : (
+        <div style={styles.body}>
+          {ai.error ? (
+            <span style={{ color: '#f38ba8' }}>⚠ {ai.error}</span>
+          ) : ai.response ? (
+            ai.response
+          ) : ai.status === 'loading' ? (
+            <span style={{ color: '#45475a' }}>等待页面就绪...</span>
+          ) : (
+            <span style={{ color: '#45475a' }}>发送问题后，回答将在此显示</span>
+          )}
+          {ai.status === 'sending' && <span style={{ animation: 'blink 1s infinite' }}> ▎</span>}
+        </div>
+      )}
+
       <div style={styles.footer}>
-        <button style={styles.btn} onClick={handleShowOriginal}>查看原网页</button>
-        {ai.response && (
+        <button
+          style={showWebview ? styles.btnActive : styles.btn}
+          onClick={handleToggleWebview}
+        >
+          {showWebview ? '返回回答' : '查看原网页'}
+        </button>
+        {!showWebview && ai.response && (
           <button style={styles.btn} onClick={handleCopy}>复制</button>
         )}
       </div>

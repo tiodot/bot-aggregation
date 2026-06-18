@@ -54,14 +54,6 @@ class WebviewManager {
       return this.broadcast(query);
     });
 
-    ipcMain.handle('show-original', (_event, name) => {
-      this.showOriginal(name);
-    });
-
-    ipcMain.handle('hide-original', () => {
-      this.hideOriginal();
-    });
-
     ipcMain.handle('retry-ai', async (_event, name) => {
       const entry = this.views.get(name);
       if (entry) {
@@ -111,18 +103,6 @@ class WebviewManager {
       this._notifyRenderer(name, 'error', err.message);
       return { name, status: 'error', error: err.message };
     }
-  }
-
-  showOriginal(name) {
-    const entry = this.views.get(name);
-    if (!entry) return;
-    this.mainWindow.setBrowserView(entry.view);
-    const bounds = this.mainWindow.getContentBounds();
-    entry.view.setBounds({ x: 0, y: 0, width: bounds.width, height: bounds.height });
-  }
-
-  hideOriginal() {
-    this.mainWindow.setBrowserView(null);
   }
 
   _notifyRenderer(name, type, data) {

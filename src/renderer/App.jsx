@@ -3,7 +3,6 @@ import useStore from './store';
 import AiSidebar from './components/AiSidebar';
 import InputBar from './components/InputBar';
 import ResponseCard from './components/ResponseCard';
-import WebViewPanel from './components/WebViewPanel';
 
 const styles = {
   app: {
@@ -30,7 +29,6 @@ const styles = {
 
 export default function App() {
   const aiServices = useStore((s) => s.aiServices);
-  const currentView = useStore((s) => s.currentView);
   const updateStatus = useStore((s) => s.updateStatus);
   const updateChunk = useStore((s) => s.updateChunk);
   const setError = useStore((s) => s.setError);
@@ -48,11 +46,6 @@ export default function App() {
 
     return unsubscribe;
   }, [updateStatus, updateChunk, setError]);
-
-  // Show original webview overlay
-  if (currentView === 'original') {
-    return <WebViewPanel />;
-  }
 
   return (
     <div style={styles.app}>
