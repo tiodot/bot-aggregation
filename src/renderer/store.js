@@ -79,6 +79,9 @@ const useStore = create(
       // Sidebar collapsed state
       sidebarCollapsed: false,
 
+      // Settings panel state
+      showSettings: false,
+
       // Session state
       currentSessionId: null,
       sessions: [],
@@ -154,6 +157,7 @@ const useStore = create(
 
       // ── Sidebar ──
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+      toggleSettings: () => set((state) => ({ showSettings: !state.showSettings })),
 
       // ── Bot management ──
       toggleBot: (name) => {

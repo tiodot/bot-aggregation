@@ -304,6 +304,7 @@ const AiSidebar = forwardRef(function AiSidebar(props, ref) {
   const loadSession = useStore((st) => st.loadSession);
   const deleteSession = useStore((st) => st.deleteSession);
   const refreshSessions = useStore((st) => st.refreshSessions);
+  const toggleSettings = useStore((st) => st.toggleSettings);
 
   useEffect(() => { refreshSessions(); }, [refreshSessions]);
 
@@ -410,6 +411,7 @@ const AiSidebar = forwardRef(function AiSidebar(props, ref) {
       <div style={s.footer} />
       <div
         style={s.settingsRow(collapsed)}
+        onClick={toggleSettings}
         onMouseEnter={(e) => { e.currentTarget.style.color = '#a6adc8'; }}
         onMouseLeave={(e) => { e.currentTarget.style.color = '#45475a'; }}
       >

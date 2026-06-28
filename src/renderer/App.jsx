@@ -4,6 +4,7 @@ import AiSidebar from './components/AiSidebar';
 import InputBar from './components/InputBar';
 import ResponseCard from './components/ResponseCard';
 import DragDivider from './components/DragDivider';
+import SettingsPanel from './components/SettingsPanel';
 
 const styles = {
   app: {
@@ -22,6 +23,7 @@ const styles = {
     flexDirection: 'column',
     overflow: 'hidden',
     minWidth: 0,
+    position: 'relative',
   },
   cards: {
     flex: 1,
@@ -43,6 +45,8 @@ export default function App() {
   const updateStatus = useStore((s) => s.updateStatus);
   const updateChunk = useStore((s) => s.updateChunk);
   const setError = useStore((s) => s.setError);
+  const showSettings = useStore((s) => s.showSettings);
+  const toggleSettings = useStore((s) => s.toggleSettings);
   const cardRefs = useRef({});
 
   // Filter to only enabled bots
@@ -171,6 +175,7 @@ export default function App() {
     <div style={styles.app}>
       <AiSidebar ref={sidebarRef} />
       <div style={styles.main}>
+        {showSettings && <SettingsPanel onClose={toggleSettings} />}
         <InputBar />
         <div style={styles.cards} data-cards-container>
           {enabledServices.map((bot, i) => {
