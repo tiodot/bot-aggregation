@@ -1,149 +1,86 @@
-import React, { useCallback, useState, useRef } from 'react';
-import useStore from '../store';
+import React, { useRef, useEffect, useCallback } from 'react';
 
 const styles = {
   card: {
     flex: 1,
-    minWidth: 260,
-    backgroundColor: '#1e1e2e',
+    minWidth: 100,
+    backgroundColor: '#181825',
     borderRadius: 10,
-    border: '1px solid #313244',
+    border: '1px solid #1e1e2e',
     display: 'flex',
     flexDirection: 'column',
+    overflow: 'hidden',
+    position: 'relative',
   },
-  header: {
-    padding: '10px 14px',
-    borderBottom: '1px solid #313244',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  name: (color) => ({
+  tag: (color) => ({
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    fontSize: 10,
     fontWeight: 600,
-    color,
+    padding: '2px 7px',
+    borderRadius: 5,
+    backgroundColor: color + '18',
+    color: color,
+    zIndex: 2,
+    pointerEvents: 'none',
+    whiteSpace: 'nowrap',
+    letterSpacing: '0.02em',
   }),
-  statusBadge: (status) => {
-    const colors = {
-      loading: { bg: '#f9e2af22', color: '#f9e2af' },
-      ready: { bg: '#a6e3a122', color: '#a6e3a1' },
-      sending: { bg: '#89b4fa22', color: '#89b4fa' },
-      done: { bg: '#a6e3a122', color: '#a6e3a1' },
-      error: { bg: '#f38ba822', color: '#f38ba8' },
-    };
-    const c = colors[status] || colors.ready;
-    return {
-      fontSize: 11,
-      padding: '2px 8px',
-      borderRadius: 4,
-      backgroundColor: c.bg,
-      color: c.color,
-    };
-  },
   body: {
     flex: 1,
-    padding: 12,
-    color: '#a6adc8',
-    fontSize: 13,
-    lineHeight: 1.6,
-    overflowY: 'auto',
-    whiteSpace: 'pre-wrap',
+    position: 'relative',
   },
-  footer: {
-    padding: '8px 14px',
-    borderTop: '1px solid #313244',
+  error: {
+    position: 'absolute',
+    inset: 0,
     display: 'flex',
-    gap: 8,
-  },
-  btn: {
-    fontSize: 11,
-    padding: '4px 10px',
-    borderRadius: 4,
-    border: '1px solid #45475a',
-    backgroundColor: 'transparent',
-    color: '#6c7086',
-    cursor: 'pointer',
-  },
-  btnActive: {
-    fontSize: 11,
-    padding: '4px 10px',
-    borderRadius: 4,
-    border: '1px solid #89b4fa',
-    backgroundColor: '#89b4fa22',
-    color: '#89b4fa',
-    cursor: 'pointer',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#f38ba8',
+    fontSize: 12,
+    padding: 20,
+    textAlign: 'center',
+    zIndex: 1,
+    pointerEvents: 'none',
+    lineHeight: 1.6,
   },
 };
 
-const statusLabels = {
-  loading: '加载中...',
-  ready: '就绪',
-  sending: '回答中...',
-  done: '✓ 完成',
-  error: '✗ 错误',
-};
-
-export default function ResponseCard({ ai }) {
-  const [showingOriginal, setShowingOriginal] = useState(false);
+/**
+ * ResponseCard — a container for one AI service.
+ * The BrowserView is positioned over the body area by the main process.
+ * Reports its body area's bounding rect via onRect callback.
+ */
+export default function ResponseCard({ ai, onRect }) {
   const cardRef = useRef(null);
+  const bodyRef = useRef(null);
 
-  const handleToggleOriginal = useCallback(() => {
-    if (!window.api) return;
+  const reportRect = useCallback(() => {
+    if (!bodyRef.current || !onRect) return;
+    const rect = bodyRef.current.getBoundingClientRect();
+    onRect(ai.name, {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    });
+  }, [ai.name, onRect]);
 
-    if (showingOriginal) {
-      // Hide the BrowserView
-      window.api.hideCardWebview();
-      setShowingOriginal(false);
-    } else {
-      // Calculate card's bounding rect and send to main process
-      const rect = cardRef.current.getBoundingClientRect();
-      window.api.showCardWebview(ai.name, {
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-      });
-      setShowingOriginal(true);
-    }
-  }, [ai.name, showingOriginal]);
+  useEffect(() => { reportRect(); }, [ai.status, reportRect]);
 
-  const handleCopy = useCallback(() => {
-    if (ai.response) {
-      navigator.clipboard.writeText(ai.response);
-    }
-  }, [ai.response]);
+  useEffect(() => {
+    if (cardRef.current) cardRef.current.__reportRect = reportRect;
+  }, [reportRect]);
 
   return (
-    <div ref={cardRef} style={styles.card}>
-      <div style={styles.header}>
-        <span style={styles.name(ai.color)}>{ai.name}</span>
-        <span style={styles.statusBadge(ai.status)}>
-          {statusLabels[ai.status] || ai.status}
-        </span>
-      </div>
-
-      {/* The body area — BrowserView will be positioned on top when showing original */}
-      <div style={{ ...styles.body, visibility: showingOriginal ? 'hidden' : 'visible' }}>
-        {ai.error ? (
-          <span style={{ color: '#f38ba8' }}>⚠ {ai.error}</span>
-        ) : ai.response ? (
-          ai.response
-        ) : ai.status === 'loading' ? (
-          <span style={{ color: '#45475a' }}>等待页面就绪...</span>
-        ) : (
-          <span style={{ color: '#45475a' }}>发送问题后，回答将在此显示</span>
-        )}
-        {ai.status === 'sending' && <span style={{ animation: 'blink 1s infinite' }}> ▎</span>}
-      </div>
-
-      <div style={styles.footer}>
-        <button
-          style={showingOriginal ? styles.btnActive : styles.btn}
-          onClick={handleToggleOriginal}
-        >
-          {showingOriginal ? '返回回答' : '查看原网页'}
-        </button>
-        {!showingOriginal && ai.response && (
-          <button style={styles.btn} onClick={handleCopy}>复制</button>
+    <div ref={cardRef} style={styles.card} data-ai-name={ai.name}>
+      <span style={styles.tag(ai.color)}>{ai.name}</span>
+      <div ref={bodyRef} style={styles.body} data-card-body>
+        {ai.error && (
+          <div style={styles.error}>
+            {ai.error}
+          </div>
         )}
       </div>
     </div>

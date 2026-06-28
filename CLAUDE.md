@@ -24,7 +24,7 @@ npm run build        # Build renderer + package Electron app
 - `sendQuery()` — injects JS to fill the input and click send
 - `listenForResponse()` — injects a MutationObserver to watch for streaming responses
 
-To add a new AI service: create a new file in `src/adapters/` extending `BaseAdapter`, then register it in `WebviewManager.adapters`.
+To add a new AI service: use the `/add-bot` command (see `.claude/skills/add-bot.md`) or manually create a new file in `src/adapters/` extending `BaseAdapter`, then register it in `WebviewManager.adapters`.
 
 **Renderer** (`src/renderer/`) is a React app with Zustand state management. Layout: left sidebar (AI list + status dots) → top input bar → right response cards (one per AI, streaming text).
 

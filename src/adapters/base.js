@@ -8,7 +8,6 @@ class BaseAdapter {
   get selectors() {
     return {
       input: '',       // textarea or contenteditable for user input
-      sendBtn: '',     // button to submit the query
       response: '',    // container for the AI's response text
       stopBtn: '',     // "stop generating" button (used to detect stream end)
     };
@@ -22,9 +21,15 @@ class BaseAdapter {
     console.log(`[${this.name}] waitForReady: looking for "${selector}"...`);
     const start = Date.now();
     while (Date.now() - start < timeout) {
-      const found = await webContents.executeJavaScript(
-        `!!document.querySelector('${selector}')`
-      ).catch((e) => {
+      const found = await webContents.executeJavaScript(`
+        (() => {
+          const selectors = ${JSON.stringify(selector.split(', '))};
+          for (const sel of selectors) {
+            if (document.querySelector(sel.trim())) return true;
+          }
+          return false;
+        })()
+      `).catch((e) => {
         console.log(`[${this.name}] waitForReady JS error:`, e.message);
         return false;
       });
@@ -38,75 +43,134 @@ class BaseAdapter {
   }
 
   /**
-   * Type a query into the input field and click send.
+   * Type a query into the input field and trigger send.
+   * Strategy: InputEvent+DataTransfer for contenteditable, native setter for textarea.
+   * Then click send button; fallback to Enter key.
    */
   async sendQuery(webContents, query) {
-    const inputSel = this.selectors.input;
-    const sendSel = this.selectors.sendBtn;
-    console.log(`[${this.name}] sendQuery: input="${inputSel}", sendBtn="${sendSel}"`);
+    console.log(`[${this.name}] sendQuery: filling input...`);
 
-    const result = await webContents.executeJavaScript(`
+    // Step 1: Fill input
+    const fillResult = await this._fillInput(webContents, query);
+    console.log(`[${this.name}] Input fill result:`, JSON.stringify(fillResult));
+
+    // Step 2: Wait for React to process the input and enable the send button
+    await this._sleep(800);
+
+    // Step 3: Try to click the send button (subclasses can override _clickSendButton)
+    const clicked = await this._clickSendButton(webContents);
+    console.log(`[${this.name}] Button click result:`, clicked);
+
+    if (!clicked) {
+      // Step 4: Fallback — send native Enter keypress
+      console.log(`[${this.name}] Button click failed, sending Enter key...`);
+      webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+      webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
+      console.log(`[${this.name}] Enter key sent.`);
+    }
+
+    // Step 5: Verify the input was cleared (indicates send was triggered)
+    await this._sleep(500);
+    const inputCleared = await this._checkInputCleared(webContents);
+    console.log(`[${this.name}] Input cleared after send:`, inputCleared);
+
+    if (!inputCleared) {
+      // One more attempt: try Enter again
+      console.log(`[${this.name}] Input not cleared, retrying Enter...`);
+      webContents.sendInputEvent({ type: 'char', keyCode: '\n' });
+      await this._sleep(300);
+    }
+  }
+
+  /**
+   * Fill the input field.
+   * For contenteditable: uses InputEvent + DataTransfer (triggers Slate/ProseMirror/etc.)
+   * For textarea/input: uses native value setter + input event (triggers React controlled components).
+   */
+  async _fillInput(webContents, query) {
+    const inputSel = this.selectors.input;
+    return webContents.executeJavaScript(`
       (() => {
         const selectors = ${JSON.stringify(inputSel.split(', '))};
         let input = null;
-        let matchedSelector = null;
+        let matched = null;
         for (const sel of selectors) {
           input = document.querySelector(sel.trim());
-          if (input) { matchedSelector = sel.trim(); break; }
+          if (input) { matched = sel.trim(); break; }
         }
         if (!input) {
-          return { ok: false, error: 'Input not found. Tried: ' + selectors.join(', ') };
+          return { ok: false, error: 'Input not found: ' + selectors.join(', ') };
         }
 
-        console.log('[${this.name}] Found input with selector:', matchedSelector, 'tag:', input.tagName);
+        console.log('[${this.name}] Found input:', matched, 'tag:', input.tagName);
+        input.focus();
 
-        if ('value' in input) {
-          const nativeSetter = Object.getOwnPropertyDescriptor(
-            window.HTMLTextAreaElement.prototype, 'value'
-          )?.set || Object.getOwnPropertyDescriptor(
-            window.HTMLInputElement.prototype, 'value'
-          )?.set;
-          if (nativeSetter) {
-            nativeSetter.call(input, ${JSON.stringify(query)});
-          } else {
-            input.value = ${JSON.stringify(query)};
+        const text = ${JSON.stringify(query)};
+        const isContentEditable = input.getAttribute('contenteditable') === 'true';
+
+        if (isContentEditable) {
+          // ContentEditable: use InputEvent + DataTransfer for framework compatibility
+          document.execCommand('selectAll');
+
+          const dt = new DataTransfer();
+          dt.setData('text/plain', text);
+          input.dispatchEvent(new InputEvent('beforeinput', {
+            bubbles: true, cancelable: true,
+            inputType: 'insertText', data: text, dataTransfer: dt,
+          }));
+          input.dispatchEvent(new InputEvent('input', {
+            bubbles: true, inputType: 'insertText', data: text,
+          }));
+
+          // Fallback if DataTransfer didn't work
+          const current = input.innerText || '';
+          if (!current.includes(text.substring(0, 20))) {
+            document.execCommand('insertText', false, text);
           }
+        } else {
+          // textarea / input: use native setter to bypass React's value tracking
+          const setter = Object.getOwnPropertyDescriptor(
+            window.HTMLTextAreaElement.prototype, 'value'
+          )?.set;
+          if (setter) setter.call(input, text);
+          else input.value = text;
           input.dispatchEvent(new Event('input', { bubbles: true }));
           input.dispatchEvent(new Event('change', { bubbles: true }));
-        } else {
-          input.focus();
-          input.textContent = ${JSON.stringify(query)};
-          input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
         }
 
-        console.log('[${this.name}] Input filled. Clicking send in 200ms...');
-
-        setTimeout(() => {
-          const btnSelectors = ${JSON.stringify(sendSel.split(', '))};
-          let btn = null;
-          for (const sel of btnSelectors) {
-            btn = document.querySelector(sel.trim());
-            if (btn) {
-              console.log('[${this.name}] Found send button:', sel.trim());
-              break;
-            }
-          }
-          if (btn) {
-            btn.click();
-            console.log('[${this.name}] Send button clicked!');
-          } else {
-            console.error('[${this.name}] Send button not found! Tried:', btnSelectors.join(', '));
-          }
-        }, 200);
-
-        return { ok: true, matchedSelector };
+        const val = input.value || input.innerText || '';
+        console.log('[${this.name}] Input value after fill:', val?.substring(0, 50));
+        return { ok: true, valueLength: val?.length || 0 };
       })()
     `);
+  }
 
-    console.log(`[${this.name}] sendQuery result:`, JSON.stringify(result));
-    if (result && !result.ok) {
-      throw new Error(result.error);
-    }
+  /**
+   * Try to find and click the send button. Override in subclasses for site-specific selectors.
+   * Returns true if a button was clicked, false otherwise.
+   */
+  async _clickSendButton(webContents) {
+    return false; // Base implementation — subclasses override
+  }
+
+  /**
+   * Check if the input was cleared after sending (indicates the message was submitted).
+   */
+  async _checkInputCleared(webContents) {
+    const inputSel = this.selectors.input;
+    return webContents.executeJavaScript(`
+      (() => {
+        const selectors = ${JSON.stringify(inputSel.split(', '))};
+        for (const sel of selectors) {
+          const el = document.querySelector(sel.trim());
+          if (el) {
+            const val = el.value || el.textContent || '';
+            return val.trim().length === 0;
+          }
+        }
+        return false;
+      })()
+    `);
   }
 
   /**
@@ -204,6 +268,29 @@ class BaseAdapter {
         }
       }, 300);
     });
+  }
+
+  /**
+   * Start a new chat. Override in subclasses for site-specific selectors.
+   * Default: try clicking common "new chat" button selectors.
+   */
+  async newChat(webContents) {
+    return webContents.executeJavaScript(`
+      (() => {
+        const selectors = [
+          'a[href="/new"]',
+          '[data-testid="new-chat"]',
+          'button[aria-label*="new" i]',
+          'button[aria-label*="新" i]',
+          'a[aria-label*="new" i]',
+        ];
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          if (el) { el.click(); return { ok: true, selector: sel }; }
+        }
+        return { ok: false, error: 'New chat button not found' };
+      })()
+    `);
   }
 
   _sleep(ms) {
