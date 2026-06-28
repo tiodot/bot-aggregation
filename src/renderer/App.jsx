@@ -40,6 +40,7 @@ export default function App() {
   const sidebarCollapsed = useStore((s) => s.sidebarCollapsed);
   const updateCardWidths = useStore((s) => s.updateCardWidths);
   const recalcCardWidths = useStore((s) => s.recalcCardWidths);
+  const syncBotsToMain = useStore((s) => s.syncBotsToMain);
   const refreshSessions = useStore((s) => s.refreshSessions);
   const sidebarRef = useRef(null);
   const updateStatus = useStore((s) => s.updateStatus);
@@ -58,6 +59,7 @@ export default function App() {
   // Restore persisted bot states to main process on mount
   useEffect(() => {
     recalcCardWidths();
+    syncBotsToMain();
     if (!window.api) return;
     bots.forEach((bot) => {
       if (!bot.enabled) {

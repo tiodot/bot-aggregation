@@ -339,6 +339,7 @@ export default function SettingsPanel({ onClose }) {
 
   const handleSave = useCallback(() => {
     if (!form.name.trim() || !form.url.trim()) return;
+    if (!form.selectors.input.trim() || !form.selectors.response.trim()) return;
     const payload = {
       name: form.name.trim(),
       url: form.url.trim(),
@@ -636,8 +637,8 @@ export default function SettingsPanel({ onClose }) {
             <button
               style={s.btn('primary')}
               onClick={handleSave}
-              disabled={!form.name.trim() || !form.url.trim()}
-              onMouseEnter={(e) => { if (form.name.trim() && form.url.trim()) e.currentTarget.style.opacity = '0.85'; }}
+              disabled={!form.name.trim() || !form.url.trim() || !form.selectors.input.trim() || !form.selectors.response.trim()}
+              onMouseEnter={(e) => { if (form.name.trim() && form.url.trim() && form.selectors.input.trim() && form.selectors.response.trim()) e.currentTarget.style.opacity = '0.85'; }}
               onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
             >
               {editingId ? 'Save Changes' : 'Add Bot'}
