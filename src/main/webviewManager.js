@@ -9,7 +9,6 @@ class WebviewManager {
     this.views = new Map(); // name -> { view, adapter, status, visible }
     this.adapters = [];
     this._cardRects = {}; // name -> { x, y, width, height }
-    this._currentSessionId = null;
 
     // Clean up any existing BrowserViews from previous instances (dev mode reload)
     this._cleanupExistingViews();
@@ -48,6 +47,7 @@ class WebviewManager {
       } catch (_) {}
     }
     this.views.clear();
+    this._cardRects = {};
 
     // Create new adapters and views
     this.adapters = botsConfig.map((config) => new GenericAdapter(config));
@@ -174,6 +174,7 @@ class WebviewManager {
       for (const [, entry] of this.views) {
         if (entry.visible) {
           entry.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+          entry.visible = false;
         }
       }
     });
