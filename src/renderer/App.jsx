@@ -9,7 +9,7 @@ const styles = {
   app: {
     display: 'flex',
     height: '100vh',
-    backgroundColor: '#11111b',
+    backgroundColor: '#181825',
     color: '#cdd6f4',
     fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
     fontSize: 13,
@@ -110,7 +110,7 @@ export default function App() {
   useEffect(() => {
     const timer = setTimeout(reportAllRects, 250);
     return () => clearTimeout(timer);
-  }, [cardWidths, bots, sidebarCollapsed, reportAllRects]);
+  }, [cardWidths, enabledServices.length, sidebarCollapsed, reportAllRects]);
 
   // Re-report rects when sidebar transition finishes
   useEffect(() => {

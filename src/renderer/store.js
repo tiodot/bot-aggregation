@@ -54,6 +54,17 @@ const DEFAULT_BOTS = [
   },
 ];
 
+// Compute equal card widths for all bots based on enabled state
+function calcCardWidths(bots) {
+  const enabledBots = bots.filter((b) => b.enabled);
+  const equalWidth = enabledBots.length > 0 ? 100 / enabledBots.length : 0;
+  const cardWidths = {};
+  bots.forEach((bot) => {
+    cardWidths[bot.id] = bot.enabled ? equalWidth : 0;
+  });
+  return cardWidths;
+}
+
 const useStore = create(
   persist(
     (set, get) => ({
@@ -160,14 +171,7 @@ const useStore = create(
             };
           });
 
-          const enabledBots = bots.filter((b) => b.enabled);
-          const equalWidth = enabledBots.length > 0 ? 100 / enabledBots.length : 0;
-          const cardWidths = {};
-          bots.forEach((bot) => {
-            cardWidths[bot.id] = bot.enabled ? equalWidth : 0;
-          });
-
-          return { bots, cardWidths };
+          return { bots, cardWidths: calcCardWidths(bots) };
         });
 
         if (window.api) {
@@ -193,14 +197,7 @@ const useStore = create(
         };
         set((state) => {
           const bots = [...state.bots, newBot];
-          // Recalc card widths
-          const enabledBots = bots.filter((b) => b.enabled);
-          const equalWidth = enabledBots.length > 0 ? 100 / enabledBots.length : 0;
-          const cardWidths = {};
-          bots.forEach((bot) => {
-            cardWidths[bot.id] = bot.enabled ? equalWidth : 0;
-          });
-          return { bots, cardWidths };
+          return { bots, cardWidths: calcCardWidths(bots) };
         });
         // Sync to main process
         get().syncBotsToMain();
@@ -208,9 +205,14 @@ const useStore = create(
       },
 
       updateBot: (id, patch) => {
+        const ALLOWED_FIELDS = new Set(['name', 'url', 'color', 'enabled', 'inputType', 'sendMethod', 'sendSelector', 'selectors']);
+        const safePatch = {};
+        for (const [key, value] of Object.entries(patch)) {
+          if (ALLOWED_FIELDS.has(key)) safePatch[key] = value;
+        }
         set((state) => ({
           bots: state.bots.map((bot) =>
-            bot.id === id ? { ...bot, ...patch } : bot
+            bot.id === id ? { ...bot, ...safePatch } : bot
           ),
         }));
         get().syncBotsToMain();
@@ -219,13 +221,7 @@ const useStore = create(
       removeBot: (id) => {
         set((state) => {
           const bots = state.bots.filter((bot) => bot.id !== id);
-          const enabledBots = bots.filter((b) => b.enabled);
-          const equalWidth = enabledBots.length > 0 ? 100 / enabledBots.length : 0;
-          const cardWidths = {};
-          bots.forEach((bot) => {
-            cardWidths[bot.id] = bot.enabled ? equalWidth : 0;
-          });
-          return { bots, cardWidths };
+          return { bots, cardWidths: calcCardWidths(bots) };
         });
         get().syncBotsToMain();
       },
@@ -235,7 +231,6 @@ const useStore = create(
           const imported = JSON.parse(jsonString);
           if (!Array.isArray(imported)) throw new Error('Expected JSON array');
           set((state) => {
-            const existingNames = new Set(state.bots.map((b) => b.name));
             const newBots = imported
               .filter((b) => b.name && b.url && b.selectors)
               .map((b) => ({
@@ -264,14 +259,7 @@ const useStore = create(
               }
             }
 
-            const enabledBots = bots.filter((b) => b.enabled);
-            const equalWidth = enabledBots.length > 0 ? 100 / enabledBots.length : 0;
-            const cardWidths = {};
-            bots.forEach((bot) => {
-              cardWidths[bot.id] = bot.enabled ? equalWidth : 0;
-            });
-
-            return { bots, cardWidths };
+            return { bots, cardWidths: calcCardWidths(bots) };
           });
           get().syncBotsToMain();
           return { ok: true };
