@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld('api', {
   // Toggle a bot on/off
   toggleBot: (name, enabled) => ipcRenderer.invoke('toggle-bot', name, enabled),
 
+  // Hide all BrowserViews (used when showing settings panel)
+  hideAllViews: () => ipcRenderer.invoke('hide-all-views'),
+
   // Sync bot configs to main process
   botsSync: (configs) => ipcRenderer.invoke('bots-sync', configs),
 

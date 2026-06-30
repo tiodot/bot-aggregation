@@ -112,11 +112,11 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [reportAllRects]);
 
-  // Report rects when card widths or enabled bots change
+  // Report rects when card widths or enabled bots change, or settings panel closes
   useEffect(() => {
     const timer = setTimeout(reportAllRects, 250);
     return () => clearTimeout(timer);
-  }, [cardWidths, enabledServices.length, sidebarCollapsed, reportAllRects]);
+  }, [cardWidths, enabledServices.length, sidebarCollapsed, showSettings, reportAllRects]);
 
   // Re-report rects when sidebar transition finishes
   useEffect(() => {

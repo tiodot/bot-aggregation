@@ -157,7 +157,12 @@ const useStore = create(
 
       // ── Sidebar ──
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
-      toggleSettings: () => set((state) => ({ showSettings: !state.showSettings })),
+      toggleSettings: () => set((state) => {
+        const next = !state.showSettings;
+        // Hide BrowserViews when opening settings so they don't cover the panel
+        if (next && window.api) window.api.hideAllViews();
+        return { showSettings: next };
+      }),
 
       // ── Bot management ──
       toggleBot: (name) => {
