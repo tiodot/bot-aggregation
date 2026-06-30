@@ -470,6 +470,33 @@ const EMPTY_BOT = {
   selectors: { input: '', response: '', stopBtn: '' },
 };
 
+/* ── Color palette for random assignment ── */
+const COLOR_PALETTE = [
+  '#89b4fa', // blue
+  '#cba6f7', // purple
+  '#fab387', // peach
+  '#a6e3a1', // green
+  '#f38ba8', // red/pink
+  '#94e2d5', // teal
+  '#f9e2af', // yellow
+  '#89dceb', // sky
+  '#f5c2e7', // pink
+  '#eba0ac', // maroon
+  '#b4befe', // lavender
+  '#74c7ec', // sapphire
+  '#f2cdcd', // flamingo
+  '#C6A0F6', // mauve (brighter)
+  '#ff6b6b', // coral
+  '#51cf66', // lime
+];
+
+function pickRandomColor(existingColors) {
+  const used = new Set(existingColors);
+  const available = COLOR_PALETTE.filter((c) => !used.has(c));
+  const pool = available.length > 0 ? available : COLOR_PALETTE;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 export default function SettingsPanel({ onClose }) {
   const bots = useStore((st) => st.bots);
   const addBot = useStore((st) => st.addBot);
@@ -497,10 +524,11 @@ export default function SettingsPanel({ onClose }) {
 
   /* ── Navigation ── */
   const goAdd = useCallback(() => {
+    const randomColor = pickRandomColor(bots.map((b) => b.color));
     setEditingId(null);
-    setForm({ ...EMPTY_BOT, selectors: { ...EMPTY_BOT.selectors } });
+    setForm({ ...EMPTY_BOT, color: randomColor, selectors: { ...EMPTY_BOT.selectors } });
     setView('add');
-  }, []);
+  }, [bots]);
 
   const goEdit = useCallback((bot) => {
     setEditingId(bot.id);
