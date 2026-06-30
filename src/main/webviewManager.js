@@ -257,6 +257,8 @@ class WebviewManager {
     if (!entry || !rect || rect.width <= 0 || rect.height <= 0) return;
     if (!entry.userEnabled) return;
 
+    // rect.x already includes sidebar offset from getBoundingClientRect()
+    // No additional clamping needed — the card area is always to the right of the sidebar
     if (entry.visible) {
       entry.view.setBounds(rect);
       return;
@@ -264,13 +266,7 @@ class WebviewManager {
 
     try { this.mainWindow.removeBrowserView(entry.view); } catch (_) {}
 
-    const safeRect = {
-      x: Math.max(180, rect.x),
-      y: Math.max(0, rect.y),
-      width: rect.width,
-      height: rect.height,
-    };
-    entry.view.setBounds(safeRect);
+    entry.view.setBounds(rect);
     this.mainWindow.addBrowserView(entry.view);
     entry.visible = true;
   }
